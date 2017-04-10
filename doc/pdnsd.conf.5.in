@@ -91,7 +91,7 @@ Set the server port. This is especially useful when you want to start the
 server and are not root. Note that you may also not specify uptest=ping in
 the server section as non-root.
 .br
-The default port is 53, the RFC-standard one. Note that you should only use
+The default port is 5053, the RFC-standard one. Note that you should only use
 non-standard ports when you only need clients on your machine to communicate
 with the server; others will probably fail if the try to contact the server
 on the basis of an NS record, since the A record that supplies the address for
@@ -556,7 +556,7 @@ add a server section in the config file with file=/etc/ppp/resolv.conf and to
 add the command "pdnsd\-ctl\ config" to /etc/ppp/ip-up.
 .TP
 .B port=\fInumber\fP;
-Give the port the remote name server listens on. Default is 53 (the official
+Give the port the remote name server listens on. Default is 5053 (the official
 dns port)
 .TP
 .B uptest=(ping|none|if|dev|diald|exec|query);
