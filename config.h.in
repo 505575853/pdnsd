@@ -1,430 +1,547 @@
-/* config.h.in.  Generated from configure.in by autoheader.  */
-#ifndef _CONFIG_H_
-#define _CONFIG_H_
+dnl Process this file with autoconf to produce a configure script.
+AC_INIT(src)
 
-/* ONLY EDIT acconfig.h, NEVER config.h or config.h.in!
- * config.h MAY BE OVERWRITTEN BY make, config.h.in by autoheader! */
+package="pdnsd"
+version=`cut -d - -f 1  "$srcdir"/version`
+fullversion=`cat "$srcdir"/version`
+packagerelease=`cut -d - -f 2- "$srcdir"/version`
 
-/* Define your Target here. Currently defined are TARGET_LINUX (any
- * architecture), TARGET_BSD (experimental; tested on FreeBSD, hopefully
- * works for other BSD variants) and TARGET_CYGWIN. */
-#define TARGET TARGET_LINUX
+distribution="Generic"
+target="autodetect"
+cachedir="/var/cache/$package"
+ipv4_default=1
+have_ipv4="yes"
+#newrrs="yes"
+query_m="udponly"
+have_tcp_server="yes"
+adisc="default"
+slock="no";
+def_id="nobody"
+#have_rcsids="no"
+udp_queries="yes"
+tcp_queries="yes"
+tempdir="/tmp"
+randomdev=default
+freebsd_pthread="4"
+specbuild=no
+threadlib=default
 
-/* change the #undef to #define if you do not want to compile with special
- * ISDN support for Linux. Note that the ISDN support will not compile ok on
- * unpatched kernerls earlier than 2.2.12 (if you did apply newer isdn patches,
- * it may work fine). This is not on by default because it will cause compile
- * problems on some systems */
-#undef ISDN_SUPPORT
+AM_INIT_AUTOMAKE($package, $version, [no-define])
+AM_CONFIG_HEADER(config.h)
+AC_GNU_SOURCE
+AC_DEFINE_UNQUOTED(VERSION,"$fullversion")
+AC_SUBST(fullversion)
+AC_SUBST(packagerelease)
 
-/* The following regulates the IP Protocol support. Supported types are IPv4
- * and IPv6 (aka IPng). You may enable either or both of these protocols.
- * Enabling in this context means that support for the respective protocol
- * will be in the binary. When running the binary, one of the protocols may
- * be activated via command line switches. Note that activating both IPv4 and
- * IPv6 is pointless (and will not work because two UDP and two TCP threads
- * will be started that concur for ports). Because of that, it is not allowed.
- * When pdnsd runs with IPv6 activated it should be able to service queries
- * from IPv6 as well as from IPv4 hosts, provided that you host is configured
- * properly.
- * For each of the protocols there are two options: ENABLE_IPV4 and ENABLE_IPV6
- * control whether support for the respective protocol is available in the
- * binary. DEFAULT_IPV4 selects which protocol is enabled on pdnsd
- * startup by default. 1 means IPv4, while 0 means IPv6. If support for
- * a protocol was included in the executable, you can specify command line
- * parameters to activate or deactivate that protocol (the options are -4 and
- * -6), but it makes more sense to use the run_ipv4=on/off option in the
- * configuration file.
- * Make your choice. Note that IPv6 support is experimental in pdnsd.
- * In normal operation, you will currently only need IPv4. */
-#undef ENABLE_IPV4
-#define DEFAULT_IPV4 1
-#undef ENABLE_IPV6
+AC_ARG_WITH(distribution,
+[  --with-distribution=distro  Specify target distribution (default=Generic;
+                              others: RedHat, SuSE, Debian, ArchLinux)],
+  distribution=$withval)
+AC_SUBST(distribution)
 
-/* In all pdnsd versions before 1.0.6, DNS queries were always done over
- * TCP. Now, you have the choice. You can control that behaviour using
- * the -m command line switch, and you can give a preset here. There
- * are 3 different modes:
- * UDP_ONLY: This is undoubtedly the fastest query method, because
- *       no TCP negotiation needs to be done.
- * TCP_ONLY: This is slower than uo, but generally more secure
- *       against DNS spoofing. Note that some name servers on the
- *       internet do not support TCP queries, notably dnscache.
- * TCP_UDP: TCP, then UDP. If the TCP query fails with a "connection refused"-
- *       error or times out, the query is retried using UDP.
- * UDP_TCP: UDP, then TCP. If the UDP reply is truncated (i.e. the tc flag is set),
- *       the query is retried using TCP. */
-#define M_PRESET UDP_ONLY
+AC_ARG_WITH(target,
+[  --with-target=platform      Change compilation target platform (default: 
+                              autodetect; others: Linux, BSD, Cygwin)],
+  target=$withval)
+case $target in
+  Linux|linux)
+    AC_DEFINE(TARGET, TARGET_LINUX)
+    target="Linux"
+    ;;
+  BSD| bsd)
+    AC_DEFINE(TARGET, TARGET_BSD)
+    target="BSD"
+    ;;
+  Cygwin|CYGWIN|cygwin)
+    AC_DEFINE(TARGET, TARGET_CYGWIN)
+    target="cygwin"
+    ;;
+  autodetect)
+    ;;
+  *)
+    AC_MSG_ERROR([--with-target must have Linux, BSD or Cygwin as parameter.])
+    ;;
+esac
 
-/* In addition to choosing the presets, you may also completely disable
- * one of the protocols (TCP for preset UDP_ONLY and UDP for preset TCP_ONLY).
- * This saves some executable space. */
-#undef NO_UDP_QUERIES
-#undef NO_TCP_QUERIES
+AC_ARG_WITH(cachedir,
+[  --with-cachedir=dir         Default directory for pdnsd cache 
+                              (default=/var/cache/pdnsd)],
+  cachedir=$withval)
+AC_DEFINE_UNQUOTED(CACHEDIR, "$cachedir")
+AC_SUBST(cachedir)
 
-/* With the following option, you can disable the TCP server functionality
- * of pdnsd. Nearly no program does TCP queries, so you probably can do
- * this safely and save some executable space and one thread.
- * You also can turn off the TCP server at runtime with the --notcp option. */
-#undef NO_TCP_SERVER
+AC_ARG_ENABLE(isdn,
+[  --enable-isdn               Enable ISDN support (may cause problems on 
+                              some systems; only for Linux)],
+  test $enableval = "yes" && AC_DEFINE(ISDN_SUPPORT))
 
-/* By undefining the following, you can disable the UDP source address
- * discovery code. This is not recommended, but you may need it when
- * running into compilation problems. */
-#undef SRC_ADDR_DISC
+AC_ARG_ENABLE(ipv4,
+[  --disable-ipv4              Disable IPv4 networking support 
+                              (default=enabled)],
+  have_ipv4=$enableval)
 
-/* NO_POLL specifies not to use poll(2), but select(2) instead. If you are
- * unsure about what this means, just leave this as it is.*/
-#undef NO_POLL
+test $have_ipv4 = "yes" && AC_DEFINE(ENABLE_IPV4)
 
-/* Define this for "hard" RFC 2181 compliance: this RFC states that
- * implementations should discard answers whose RR sets have multiple
- * different time stamps. While correct answers are generated, incorrect
- * ones are normally tolerated and corrected. Full RFC compliance is
- * however only achieved by deactivating this behaviour and thus being
- * intolerant. */
-#undef RFC2181_ME_HARDER
+AC_ARG_ENABLE(ipv6,
+[  --enable-ipv6               Enable IPv6 networking support],
+[ if test $enableval = "yes" ; then
+    AC_DEFINE(ENABLE_IPV6)
+    if test $have_ipv4 != "yes" ; then
+      ipv4_default=0
+    fi
+  fi])
 
-/* Define this to the device you want to use for getting random numbers.
- * Leave this undefined if you wand to use the standard C library random
- * function, which basically should be sufficient.
- * Linux and FreeBSD have two random number devices: /dev/random and
- * /dev/urandom. /dev/urandom might be less secure in some cases, but
- * should still be more than sufficient. The use of /dev/random is
- * discouraged, as reading from this device blocks when new random bits
- * need to be gathered. */
-#undef RANDOM_DEVICE
-#undef R_DEFAULT
-#undef R_RANDOM
-#undef R_ARC4RANDOM
-/*#define RANDOM_DEVICE "/dev/urandom"*/
+AC_ARG_ENABLE(ipv4-startup,
+[  --disable-ipv4-startup      Disable IPv4 on pdnsd startup by default
+                              (default=enabled)],
+[ if test $enableval = "yes" ; then
+    ipv4_default=1
+  else
+    ipv4_default=0
+  fi])
 
-/* Designate which database manager to use for cacheing.
- * default: native; others: gdbm */
-#define CACHE_DBM DBM_NATIVE
+AC_ARG_ENABLE(ipv6-startup,
+[  --enable-ipv6-startup       Enable IPV6 on pdnsd startup by default
+                              (default=IPv4)],
+[ if test $enableval = "yes" ; then
+    ipv4_default=0
+  else
+    ipv4_default=1
+  fi])
 
-#define CACHEDIR "/var/cache/pdnsd"
+AC_DEFINE_UNQUOTED(DEFAULT_IPV4, $ipv4_default)
 
-#define TEMPDIR "/tmp";
+AC_ARG_ENABLE(udp-queries,
+[  --disable-udp-queries       Disable udp as query method.],
+  udp_queries=$enableval)
 
-/* This is for various debugging facilities that produce debug output and
- * double-check some values. You can enable debug messages with the -g option.
- * Normally, you can switch this off safely by setting the number after DEBUG
- * to 0. This will increase speed (although only marginally), save space
- * in the executable (only about 12kB) and some stack space per thread
- * (which may be significant if you have many threads running simultaneously).
- * However, it may be an aid when debugging config files.
- * The only defined debug levels by now are in the range 0 - 9.
- * Define this to 9 if you want hex dumps of all the queries and replies pdnsd
- * receives (you must also call pdnsd with -v9 to actually see the hex dumps).
- * When in doubt, leave it defined to 1. */
-#define DEBUG 1
+AC_ARG_ENABLE(tcp-queries,
+[  --disable-tcp-queries       Disable tcp as query method.],
+  tcp_queries=$enableval)
 
-/* This defines the default verbosity of informational messages you will get.
-   This has nothing to to with the debug option (-g), but may be set with -v
-   option. 0 is for normal operation, up to 3 for debugging.
-   Unlike the debug messages, these messages will also be written to the syslog.*/
-#define VERBOSITY 0
+AC_ARG_WITH(query-method,
+[  --with-query-method=qm      Specify the query method (default=udponly;
+                              others: tcponly, tcpudp, udptcp)],
+  query_m=$withval)
+case $query_m in
+  udponly|UDPonly)
+    AC_DEFINE(M_PRESET, UDP_ONLY)
+    udp_queries=yes;
+    ;;
+  tcponly|TCPonly)
+    AC_DEFINE(M_PRESET, TCP_ONLY)
+    tcp_queries=yes;
+    ;;
+  tcpudp|TCPUDP)
+    AC_DEFINE(M_PRESET, TCP_UDP)
+    udp_queries=yes;
+    tcp_queries=yes;
+    ;;
+  udptcp|UDPTCP)
+    AC_DEFINE(M_PRESET, UDP_TCP)
+    udp_queries=yes;
+    tcp_queries=yes;
+    ;;
+  *)
+    AC_MSG_ERROR([--with-query-method must have udponly, tcponly, tcpudp or udptcp as parameter.])
+    ;;
+esac
 
-/* Redefine this if you want another hash size.
- * The number of hash buckets is computed as power of two (1<<HASH_SZ);
- * so e.g. HASH_SZ set to 10 yields 1024 hash rows.
- * HASH_SZ may not be bigger than 32 (if you set it even close to that value,
- * you are nuts.) */
-#define HASH_SZ 10
+test $udp_queries != "yes" && AC_DEFINE(NO_UDP_QUERIES)
+test $tcp_queries != "yes" && AC_DEFINE(NO_TCP_QUERIES)
 
-/* Set this to debug the hash tables. Turn this off normally, or you will get
- * flooded with diagnostic messages */
-#undef DEBUG_HASH
+AC_ARG_ENABLE(tcp-server,
+[  --disable-tcp-server        Disable the TCP serving ability of pdnsd],
+  have_tcp_server=$enableval)
 
-/* Define if you have working C99 Variadic macro support */
-#undef CPP_C99_VARIADIC_MACROS
+test $have_tcp_server != "yes" && AC_DEFINE(NO_TCP_SERVER)
 
-/* Define as int if socklen_t typedef is missing */
-#undef socklen_t
+AC_ARG_ENABLE(src-addr-disc,
+[  --disable-src-addr-disc     Disable the UDP source address discovery],
+    adisc=$enableval)
 
-/* Lock the UDP socket before using it? */
-#undef SOCKET_LOCKING
+AC_ARG_ENABLE(socket-locking,
+[  --enable-socket-locking     Enable the UDP socket locking],
+    slock=$enableval)
 
-/* Default TCP timeout when receiving queries */
-#define TCP_TIMEOUT 30
+test $slock = "yes" && AC_DEFINE(SOCKET_LOCKING)
 
-/* Default value for parallel query number */
-#define PAR_QUERIES   2
+AC_ARG_ENABLE(poll,
+[  --disable-poll              Disable poll(2) and use select(2)
+                              (default=enabled)],
+   test $enableval != "yes" && AC_DEFINE(NO_POLL))
 
-/* Maximum number of queries in a tcp connection */
-#define TCP_MAX_QUERY 3
+AC_ARG_ENABLE(new-rrs,
+[  --disable-new-rrs           Disable new DNS RR types (obsolete, currently ignored)],
+   newrrs=$enableval)
 
-/* Maximum number of IP addresses used per nameserver obtained from NS records. */
-#define MAXNAMESERVIPS 3
+AC_ARG_ENABLE(strict-rfc2181,
+[  --enable-strict-rfc2181     Enforce strict RFC 2181 compliance],
+   test $enableval = "yes" && AC_DEFINE(RFC2181_ME_HARDER))
 
-/* These are the possible targets. Normally no need to touch these
- * definitions. */
-#define TARGET_LINUX  0
-#define TARGET_BSD    1
-#define TARGET_CYGWIN 2
+AC_ARG_WITH(random-device,
+[  --with-random-device=device Specify random device other than 
+                              /dev/random; default: C Library random() PRNG;
+                              special value arc4random for BSD C Library
+                              arc4random function (default on FreeBSD)],
+   randomdev=$withval)
 
-/* Assume the Native POSIX Thread Library instead of LinuxThreads ? */
-#undef THREADLIB_NPTL
+if test "$randomdev" = arc4random ; then
+	AC_DEFINE(R_ARC4RANDOM)
+elif test "$randomdev" = random ; then
+	AC_DEFINE(R_RANDOM)
+elif test "$randomdev" = default ; then
+	AC_DEFINE(R_DEFAULT)
+else
+	AC_DEFINE_UNQUOTED(RANDOM_DEVICE, "$randomdev")
+fi
 
-/* If we are using LinuxThreads, implement the fix needed for newer glibcs ? */
-#undef THREADLIB_LINUXTHREADS2
+AC_ARG_ENABLE(underscores,
+[  --enable-underscores        Allow _ in domain names (obsolete, currently ignored)],
+   underscores=$enableval)
 
-/* The following is needed for using LinuxThreads. Better don't touch. */
-#define _REENTRANT 1
-#define _THREAD_SAFE 1
+AC_ARG_WITH(default-id,
+[  --with-default-id=id        Specify default uid/gid for pdnsd 
+                              (default=nobody)],
+  def_id=$withval)
+AC_SUBST(def_id)
 
-/* It appears the newer versions of gcc won't convert a pointer to char into
-   a pointer to unsigned char and vice versa without complaining.
-   By using casts these warning messages can be suppressed, but at the cost
-   of losing some type safety.
-   Define charp and ucharp to be empty if you are a developer and find type
-   safety more important.
-   Leave the definitions unchanged to avoid distracting warning messages. */
-#define charp (char *)
-#define ucharp (unsigned char *)
+AC_ARG_WITH(debug,
+[  --with-debug=level          Specify debugging level (0 means no debug support)],
+  AC_DEFINE_UNQUOTED(DEBUG, $withval))
+
+AC_ARG_WITH(verbosity,
+[  --with-verbosity=level      Specify default message verbosity],
+  AC_DEFINE_UNQUOTED(VERBOSITY, $withval))
+
+AC_ARG_WITH(hash-buckets,
+[  --with-hash-buckets=num     Number of hash buckets to use (default=1024).
+                              The number actually used is the smallest power of two
+                              greater or equal to the number specified here.],
+  powof2=1
+  hashsz=0
+
+  while test $powof2 -lt "$withval"
+  do
+    powof2=`expr 2 '*' $powof2`
+    hashsz=`expr $hashsz '+' 1`
+  done
+  AC_DEFINE_UNQUOTED(HASH_SZ, $hashsz)
+)
+
+AC_ARG_ENABLE(hash-debug,
+[  --enable-hash-debug         Debug hash tables (warning: massive output)],
+  test $enableval = "yes" && AC_DEFINE(DEBUG_HASH))
+
+AC_ARG_ENABLE(rcsids,
+[  --enable-rcsids             Enable RCS IDs in executables (obsolete, currently ignored)],
+  have_rcsids=$enableval)
+
+AC_ARG_WITH(tcp-qtimeout,
+[  --with-tcp-qtimeout=secs    Specify default tcp query timeout (default=30)],
+  AC_DEFINE_UNQUOTED(TCP_TIMEOUT, $withval))
+
+AC_ARG_WITH(tcp-max-query,
+[  --with-tcp-max-query=num    Allow a maximum of queries in tcp connection (default=3)],
+  AC_DEFINE_UNQUOTED(TCP_MAX_QUERY, $withval))
+
+AC_ARG_WITH(par-queries,
+[  --with-par-queries=num      Specify default parallel query number (default=2)],
+  AC_DEFINE_UNQUOTED(PAR_QUERIES, $withval))
+
+AC_ARG_WITH(max-nameserver-ips,
+[  --with-max-nameserver-ips=num      Specify maximum number of IP addresses used per nameserver obtained from NS records (default=3)],
+  AC_DEFINE_UNQUOTED(MAXNAMESERVIPS, $withval))
+
+AC_ARG_ENABLE(specbuild,
+[  --enable-specbuild          Only used when building pdnsd from spec files],
+  specbuild=$enableval)
+
+AC_SUBST(specbuild)
+
+AC_ARG_WITH(thread-lib,
+[  --with-thread-lib=lib       Specify thread library, overriding automatic detection (for Linux only).
+                              Possible values: LinuxThreads,
+                              LinuxThreads2 (implements a fix for newer glibcs)
+                              or NPTL (Native POSIX Thread Library)],
+  threadlib=$withval)
+
+AC_SUBST(threadlib)
+
+dnl Checks for programs.
+AC_PROG_CC
+AM_PROG_CC_STDC
+AM_PROG_CC_C_O
+AC_PROG_INSTALL
+
+dnl For dbm subsystem libraries
+AC_PROG_RANLIB
+
+if test "$target" = "autodetect" ; then
+  AC_MSG_CHECKING([for autodetect build target])
+  uname_sys=`uname`
+  if test $? -ne 0 ; then
+    AC_MSG_RESULT([failed])
+    AC_MSG_ERROR([uname failed or was not found in path])
+  else
+    case "${uname_sys}" in
+    Linux)
+      AC_MSG_RESULT(Linux)
+      AC_DEFINE(TARGET, TARGET_LINUX)
+      target="Linux"
+      ;;
+    FreeBSD|NetBSD|OpenBSD|Darwin)
+      AC_MSG_RESULT("${uname_sys}")
+      AC_DEFINE(TARGET, TARGET_BSD)
+      target="BSD"
+      ;;
+    CYGWIN*)
+      AC_MSG_RESULT("${uname_sys}")
+      AC_DEFINE(TARGET, TARGET_CYGWIN)
+      target="cygwin"
+      ;;
+    *)
+      AC_MSG_RESULT([failed])
+      AC_MSG_ERROR(
+[Your system type could not be identified. Try setting it manually using 
+--with-target])
+      ;;
+    esac
+  fi
+fi
+
+#if test "$target" = BSD ; then
+#  uname_sys=`uname`
+#  if test "$uname_sys" = FreeBSD ; then
+#    AC_MSG_CHECKING([for FreeBSD version])
+#    osrel=`sysctl -n kern.osreldate`
+#    if test $osrel -ge 500016 ; then
+#      AC_MSG_RESULT([5.0 (>= 500016)])
+#      freebsd_pthread="5"
+#    else
+#      AC_MSG_RESULT([<=5.0 (< 500016)])
+#      freebsd_pthread="4"
+#    fi
+#  fi
+#fi
+
+if test "$adisc" = "default"; then
+  if test "$target" = "cygwin" ; then
+# Don't do UDP source address discovery on Cygwin platform by default.
+    adisc="no"
+  else
+    adisc="yes"
+  fi
+fi
+
+test "$adisc" = "yes" && AC_DEFINE(SRC_ADDR_DISC)
 
 
-/* pdnsd version. DO NOT TOUCH THIS! It is replaced automatically by the
- * contents of ./version */
-#define VERSION "@VERSION@"
+dnl Checks for libraries.
+if test "$target" = "Linux"; then
+AC_MSG_CHECKING([if we can compile and link with -pthread])
+old_CFLAGS="$CFLAGS"
+CFLAGS="$CFLAGS -pthread"
+AC_LINK_IFELSE([
+#include <pthread.h>
 
+void *thread_func(void *data)
+{
+	*((int *)data)=1;
+	return data;
+}
+
+int main()
+{
+	pthread_t thread;
+	void *retval;
+	int val;
+
+	if(pthread_create(&thread, NULL, thread_func, &val))
+		return 1;
+
+	if(pthread_join(thread,&retval))
+		return 1;
+
+	return (*((int *)retval)!=1);
+}
+],
+  gcc_pthread_flag="yes", gcc_pthread_flag="no")
+CFLAGS="$old_CFLAGS"
+AC_MSG_RESULT([$gcc_pthread_flag])
+
+  if test "$gcc_pthread_flag" = yes ; then
+    thread_CFLAGS="-pthread"
+    AC_SUBST(thread_CFLAGS)
+  else
+    AC_CHECK_LIB(pthread, pthread_create)
+  fi
+fi
+if test "$target" = "BSD" -a `uname` != Darwin ; then
+#  if test $freebsd_pthread = 4 ; then
+    thread_CFLAGS="-pthread"
+    AC_SUBST(thread_CFLAGS)
+#  else
+#    AC_CHECK_LIB(c_r, pthread_create, , 
+#      AC_MSG_ERROR([You must have libc_r installed to build/run pdnsd!]))
+#  fi;
+fi
+
+if test "$target" = "Linux" -a "$threadlib" = default; then
+AC_MSG_CHECKING([if this is an NPTL-based system])
+old_CFLAGS="$CFLAGS"
+CFLAGS="$CFLAGS $thread_CFLAGS"
+AC_RUN_IFELSE([
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <pthread.h>
+
+/* All this function does is return its PID (in a roundabout way). */
+void *thread_func(void *data)
+{
+	*((int *)data)=getpid();
+	return data;
+}
+
+int main()
+{
+	pthread_t thread;
+	void *retval;
+	int err,mainpid,thrdpid;
+
+	err=pthread_create(&thread, NULL, thread_func, &thrdpid);
+	if(err) {
+		fprintf(stderr,"pthread_create failed: %s\n",strerror(err));
+		return 1;
+	}
+	err=pthread_join(thread,&retval);
+	if(err) {
+		fprintf(stderr,"pthread_join failed: %s\n",strerror(err));
+		return 1;
+	}
+	mainpid=getpid();
+	/* In LinuxThreads implementations, the pids of the threads will usually differ
+	   in a non Posix-compliant way. */
+	fprintf(stderr,"main pid=%d, thread pid=%d\n",mainpid,*((int *)retval));
+	return (*((int *)retval)!=mainpid);
+}
+],
+[
+  AC_MSG_RESULT([yes])
+  threadlib=nptl
+],
+[
+  AC_MSG_RESULT([no])
+  threadlib=linuxthreads
+],
+[
+  AC_MSG_RESULT([couldn't run test program])
+  threadlib=linuxthreads
+])
+CFLAGS="$old_CFLAGS"
+fi
+
+if test "$threadlib" = nptl -o "$threadlib" = NPTL; then
+	AC_DEFINE(THREADLIB_NPTL)
+elif test "$threadlib" = linuxthreads2 -o "$threadlib" = LinuxThreads2 -o "$threadlib" = lt2; then
+	AC_DEFINE(THREADLIB_LINUXTHREADS2)
+fi
+
+dnl Checks for header files.
+AC_HEADER_STDC
+AC_HEADER_SYS_WAIT
+AC_CHECK_HEADERS(fcntl.h malloc.h sys/ioctl.h sys/time.h syslog.h unistd.h)
+AC_CHECK_HEADERS(sys/types.h sys/socket.h net/if.h netinet/in.h sys/poll.h,,,
+[#include <stdio.h>
+#if STDC_HEADERS
+# include <stdlib.h>
+# include <stddef.h>
+#else
+# if HAVE_STDLIB_H
+#  include <stdlib.h>
+# endif
 #endif
-
-/* Define to one of `_getb67', `GETB67', `getb67' for Cray-2 and Cray-YMP
-   systems. This function is required for `alloca.c' support on those systems.
-   */
-#undef CRAY_STACKSEG_END
-
-/* Define to 1 if using `alloca.c'. */
-#undef C_ALLOCA
-
-/* Define to 1 if you have `alloca', as a function or macro. */
-#undef HAVE_ALLOCA
-
-/* Define to 1 if you have <alloca.h> and it should be used (not on Ultrix).
-   */
-#undef HAVE_ALLOCA_H
-
-/* Define to 1 if you have the `asprintf' function. */
-#undef HAVE_ASPRINTF
-
-/* Define to 1 if you don't have `vprintf' but do have `_doprnt.' */
-#undef HAVE_DOPRNT
-
-/* Define to 1 if you have the <fcntl.h> header file. */
-#undef HAVE_FCNTL_H
-
-/* Define to 1 if you have the `getline' function. */
-#undef HAVE_GETLINE
-
-/* Define to 1 if you have the `getpwnam_r' function. */
-#undef HAVE_GETPWNAM_R
-
-/* Define to 1 if you have the `gettimeofday' function. */
-#undef HAVE_GETTIMEOFDAY
-
-/* Define to 1 if you have the `inet_ntop' function. */
-#undef HAVE_INET_NTOP
-
-/* Define to 1 if you have the `inet_pton' function. */
-#undef HAVE_INET_PTON
-
-/* Define to 1 if you have the <inttypes.h> header file. */
-#undef HAVE_INTTYPES_H
-
-/* Define to 1 if you have the `pthread' library (-lpthread). */
-#undef HAVE_LIBPTHREAD
-
-/* Define to 1 if you have the <malloc.h> header file. */
-#undef HAVE_MALLOC_H
-
-/* Define to 1 if you have the <memory.h> header file. */
-#undef HAVE_MEMORY_H
-
-/* Define to 1 if you have the `mempcpy' function. */
-#undef HAVE_MEMPCPY
-
-/* Define to 1 if you have the `mkfifo' function. */
-#undef HAVE_MKFIFO
-
-/* Define to 1 if you have the `nanosleep' function. */
-#undef HAVE_NANOSLEEP
-
-/* Define to 1 if you have the <netinet/in.h> header file. */
-#undef HAVE_NETINET_IN_H
-
-/* Define to 1 if you have the <net/if.h> header file. */
-#undef HAVE_NET_IF_H
-
-/* Define to 1 if you have the `poll' function. */
-#undef HAVE_POLL
-
-/* Define to 1 if you have the `select' function. */
-#undef HAVE_SELECT
-
-/* Define to 1 if you have the `snprintf' function. */
-#undef HAVE_SNPRINTF
-
-/* Define to 1 if you have the `socket' function. */
-#undef HAVE_SOCKET
-
-/* Define to 1 if the system has the type `socklen_t'. */
-#undef HAVE_SOCKLEN_T
-
-/* Define to 1 if you have the <stdint.h> header file. */
-#undef HAVE_STDINT_H
-
-/* Define to 1 if you have the <stdlib.h> header file. */
-#undef HAVE_STDLIB_H
-
-/* Define to 1 if you have the `stpcpy' function. */
-#undef HAVE_STPCPY
-
-/* Define to 1 if you have the `stpncpy' function. */
-#undef HAVE_STPNCPY
-
-/* Define to 1 if you have the `strdup' function. */
-#undef HAVE_STRDUP
-
-/* Define to 1 if you have the `strerror' function. */
-#undef HAVE_STRERROR
-
-/* Define to 1 if you have the <strings.h> header file. */
-#undef HAVE_STRINGS_H
-
-/* Define to 1 if you have the <string.h> header file. */
-#undef HAVE_STRING_H
-
-/* Define to 1 if you have the `strlcpy' function. */
-#undef HAVE_STRLCPY
-
-/* Define to 1 if you have the `strndup' function. */
-#undef HAVE_STRNDUP
-
-/* Define to 1 if the system has the type `struct ifreq'. */
-#undef HAVE_STRUCT_IFREQ
-
-/* Define to 1 if the system has the type `struct in6_addr'. */
-#undef HAVE_STRUCT_IN6_ADDR
-
-/* Define to 1 if the system has the type `struct in_pktinfo'. */
-#undef HAVE_STRUCT_IN_PKTINFO
-
-/* Define to 1 if you have the <syslog.h> header file. */
-#undef HAVE_SYSLOG_H
-
-/* Define to 1 if you have the <sys/ioctl.h> header file. */
-#undef HAVE_SYS_IOCTL_H
-
-/* Define to 1 if you have the <sys/poll.h> header file. */
-#undef HAVE_SYS_POLL_H
-
-/* Define to 1 if you have the <sys/socket.h> header file. */
-#undef HAVE_SYS_SOCKET_H
-
-/* Define to 1 if you have the <sys/stat.h> header file. */
-#undef HAVE_SYS_STAT_H
-
-/* Define to 1 if you have the <sys/time.h> header file. */
-#undef HAVE_SYS_TIME_H
-
-/* Define to 1 if you have the <sys/types.h> header file. */
-#undef HAVE_SYS_TYPES_H
-
-/* Define to 1 if you have <sys/wait.h> that is POSIX.1 compatible. */
-#undef HAVE_SYS_WAIT_H
-
-/* Define to 1 if you have the `uname' function. */
-#undef HAVE_UNAME
-
-/* Define to 1 if you have the <unistd.h> header file. */
-#undef HAVE_UNISTD_H
-
-/* Define to 1 if you have the `vasprintf' function. */
-#undef HAVE_VASPRINTF
-
-/* Define to 1 if you have the `vprintf' function. */
-#undef HAVE_VPRINTF
-
-/* Define to 1 if you have the `vsnprintf' function. */
-#undef HAVE_VSNPRINTF
-
-/* Define to the address where bug reports for this package should be sent. */
-#undef PACKAGE_BUGREPORT
-
-/* Define to the full name of this package. */
-#undef PACKAGE_NAME
-
-/* Define to the full name and version of this package. */
-#undef PACKAGE_STRING
-
-/* Define to the one symbol short name of this package. */
-#undef PACKAGE_TARNAME
-
-/* Define to the home page for this package. */
-#undef PACKAGE_URL
-
-/* Define to the version of this package. */
-#undef PACKAGE_VERSION
-
-/* Define as the return type of signal handlers (`int' or `void'). */
-#undef RETSIGTYPE
-
-/* If using the C implementation of alloca, define if you know the
-   direction of stack growth for your system; otherwise it will be
-   automatically deduced at runtime.
-	STACK_DIRECTION > 0 => grows toward higher addresses
-	STACK_DIRECTION < 0 => grows toward lower addresses
-	STACK_DIRECTION = 0 => direction of growth unknown */
-#undef STACK_DIRECTION
-
-/* Define to 1 if you have the ANSI C header files. */
-#undef STDC_HEADERS
-
-/* Define to 1 if you can safely include both <sys/time.h> and <time.h>. */
-#undef TIME_WITH_SYS_TIME
-
-/* Define to 1 if your <sys/time.h> declares `struct tm'. */
-#undef TM_IN_SYS_TIME
-
-/* Enable extensions on AIX 3, Interix.  */
-#ifndef _ALL_SOURCE
-# undef _ALL_SOURCE
+#if HAVE_SYS_SOCKET_H
+# include <sys/socket.h>
 #endif
-/* Enable GNU extensions on systems that have them.  */
-#ifndef _GNU_SOURCE
-# undef _GNU_SOURCE
-#endif
-/* Enable threading extensions on Solaris.  */
-#ifndef _POSIX_PTHREAD_SEMANTICS
-# undef _POSIX_PTHREAD_SEMANTICS
-#endif
-/* Enable extensions on HP NonStop.  */
-#ifndef _TANDEM_SOURCE
-# undef _TANDEM_SOURCE
-#endif
-/* Enable general extensions on Solaris.  */
-#ifndef __EXTENSIONS__
-# undef __EXTENSIONS__
-#endif
+])
 
+dnl Checks for typedefs, structures, and compiler characteristics.
+AC_C_CONST
+AC_TYPE_PID_T
+AC_TYPE_SIZE_T
+AC_HEADER_TIME
+AC_STRUCT_TM
+AC_CHECK_TYPES(socklen_t,, AC_DEFINE(socklen_t,int),[#include <sys/types.h>
+#include <sys/socket.h>
+#include <net/if.h>
+#include <netinet/in.h>])
+AC_CHECK_TYPES([struct in6_addr, struct in_pktinfo, struct ifreq],,,[#include <sys/types.h>
+#include <sys/socket.h>
+#include <net/if.h>
+#include <netinet/in.h>])
 
-/* Define to 1 if on MINIX. */
-#undef _MINIX
+AC_MSG_CHECKING([for CPP C99 Variadic macro support])
+AC_COMPILE_IFELSE([
+#define a(...) junk(0,__VA_ARGS__)
+extern void junk(int i,...);
+int main()
+{
+  a(0);
+  a("a");
+  a(0, "a", 1);
+  return 0;
+}
+],
+  cpp_c99_variadic="yes", cpp_c99_variadic="no")
+AC_MSG_RESULT([$cpp_c99_variadic])
+if test $cpp_c99_variadic = yes; then
+  AC_DEFINE(CPP_C99_VARIADIC_MACROS)
+else
+  if test "$GCC" != yes; then
+    AC_MSG_ERROR([Compiler must support C99 or gcc variadic macros])
+  fi;
+fi
 
-/* Define to 2 if the system does not provide POSIX.1 features except with
-   this defined. */
-#undef _POSIX_1_SOURCE
+dnl Checks for library functions.
+AC_FUNC_ALLOCA
+AC_PROG_GCC_TRADITIONAL
+AC_FUNC_MEMCMP
+AC_TYPE_SIGNAL
+AC_FUNC_VPRINTF
+AC_SEARCH_LIBS(nanosleep, rt)
+AC_SEARCH_LIBS(socket, socket,,,-lnsl)
+AC_SEARCH_LIBS(inet_aton, resolv)
+AC_CHECK_FUNCS(nanosleep gettimeofday mkfifo select socket strerror uname snprintf vsnprintf, true, 
+		AC_MSG_ERROR([One of the functions required for pdnsd were not found.]))
+AC_CHECK_FUNCS(poll, true, AC_DEFINE(NO_POLL))
+AC_CHECK_FUNCS(strdup strndup stpcpy stpncpy strlcpy mempcpy getline asprintf vasprintf getpwnam_r inet_ntop inet_pton)
 
-/* Define to 1 if you need to in order for `stat' and other things to work. */
-#undef _POSIX_SOURCE
-
-/* Define to empty if `const' does not conform to ANSI C. */
-#undef const
-
-/* Define to `int' if <sys/types.h> does not define. */
-#undef pid_t
-
-/* Define to `unsigned int' if <sys/types.h> does not define. */
-#undef size_t
+AC_OUTPUT([
+pdnsd.spec
+Makefile
+file-list.base
+contrib/Makefile
+doc/Makefile
+doc/pdnsd.8
+doc/pdnsd.conf.5
+doc/pdnsd.conf
+src/Makefile
+src/pdnsd-ctl/Makefile
+src/rc/Makefile
+src/rc/RedHat/Makefile
+src/rc/RedHat/pdnsd
+src/rc/SuSE/Makefile
+src/rc/SuSE/pdnsd
+src/rc/Debian/Makefile
+src/rc/Debian/pdnsd
+src/rc/Slackware/Makefile
+src/rc/Slackware/rc.pdnsd
+src/rc/ArchLinux/Makefile
+src/rc/ArchLinux/pdnsd.service
+src/test/Makefile
+PKGBUILD
+])
